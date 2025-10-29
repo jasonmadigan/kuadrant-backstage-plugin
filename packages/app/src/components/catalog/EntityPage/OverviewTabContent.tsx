@@ -26,6 +26,8 @@ import {
   EntityUserProfileCard,
 } from '@backstage/plugin-org';
 
+import { EntityKuadrantApiAccessCard } from '@internal/plugin-kuadrant';
+
 import Grid from '../Grid';
 import { hasLinks } from '../utils';
 
@@ -176,6 +178,18 @@ export const OverviewTabContent = () => (
           }}
         >
           <EntityCatalogGraphCard variant="gridItem" height={400} />
+        </Grid>
+        <Grid
+          item
+          sx={{
+            gridColumn: {
+              lg: '5 / -1',
+              md: '7 / -1',
+              xs: '1 / -1',
+            },
+          }}
+        >
+          <EntityKuadrantApiAccessCard />
         </Grid>
         <Grid
           item

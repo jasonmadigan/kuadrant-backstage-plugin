@@ -166,6 +166,10 @@ backend.add(
 );
 backend.add(import('@internal/plugin-licensed-users-info-backend'));
 
+// kuadrant plugins
+backend.add(import('@internal/plugin-kuadrant-backend'));
+backend.add(import('@internal/plugin-kuadrant-backend/alpha'));
+
 backend.add(userSettingsBackend);
 
 backend.start();

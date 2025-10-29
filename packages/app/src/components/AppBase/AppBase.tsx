@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { Route } from 'react-router-dom';
+import { Navigate, Route } from 'react-router-dom';
 
 import { FlatRoutes } from '@backstage/core-app-api';
 import { AlertDisplay, OAuthRequestDialog } from '@backstage/core-components';
@@ -19,6 +19,9 @@ import { ScaffolderPage } from '@backstage/plugin-scaffolder';
 import { ScaffolderFieldExtensions } from '@backstage/plugin-scaffolder-react';
 import { SearchPage as BackstageSearchPage } from '@backstage/plugin-search';
 import { UserSettingsPage } from '@backstage/plugin-user-settings';
+
+import { KuadrantPage } from '@internal/plugin-kuadrant';
+import { RbacPage } from '@backstage-community/plugin-rbac';
 
 import DynamicRootContext from '@red-hat-developer-hub/plugin-utils';
 
@@ -84,6 +87,7 @@ const AppBase = () => {
           <ApplicationListener />
           <Root>
             <FlatRoutes>
+              <Route path="/" element={<Navigate to="catalog" />} />
               <Route
                 path="/catalog"
                 element={
@@ -133,6 +137,8 @@ const AppBase = () => {
               </Route>
               <Route path="/catalog-graph" element={<CatalogGraphPage />} />
               <Route path="/learning-paths" element={<LearningPaths />} />
+              <Route path="/kuadrant" element={<KuadrantPage />} />
+              <Route path="/rbac" element={<RbacPage />} />
               {dynamicRoutes.map(
                 ({ Component, staticJSXContent, path, config: { props } }) => {
                   return (

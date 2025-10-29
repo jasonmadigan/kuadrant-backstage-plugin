@@ -1,6 +1,12 @@
 import { Entity } from '@backstage/catalog-model';
 import { isKind } from '@backstage/plugin-catalog';
 
+import {
+  EntityKuadrantApiKeysContent,
+  EntityKuadrantApiProductInfoContent,
+} from '@internal/plugin-kuadrant';
+
+import Grid from '../Grid';
 import { isType } from '../utils';
 import { ApiTabContent } from './ApiTabContent';
 import { DefinitionTabContent } from './DefinitionTabContent';
@@ -91,6 +97,14 @@ export const defaultTabs: Record<
     titleKey: 'catalog.entityPage.diagram.title',
     mountPoint: 'entity.page.diagram',
   },
+  '/api-keys': {
+    title: 'API Keys',
+    mountPoint: 'entity.page.api-keys',
+  },
+  '/api-product-info': {
+    title: 'API Product Info',
+    mountPoint: 'entity.page.api-product-info',
+  },
 };
 
 /**
@@ -112,6 +126,12 @@ export const tabRules: Record<
   },
   '/system': {
     if: isKind('system'),
+  },
+  '/api-keys': {
+    if: isKind('api'),
+  },
+  '/api-product-info': {
+    if: (entity: Entity) => entity.kind === 'APIProduct',
   },
 };
 
@@ -136,5 +156,19 @@ export const tabChildren: Record<
   },
   '/system': {
     children: <DiagramTabContent />,
+  },
+  '/api-keys': {
+    children: (
+      <Grid item sx={{ gridColumn: '1 / -1' }}>
+        <EntityKuadrantApiKeysContent />
+      </Grid>
+    ),
+  },
+  '/api-product-info': {
+    children: (
+      <Grid item sx={{ gridColumn: '1 / -1' }}>
+        <EntityKuadrantApiProductInfoContent />
+      </Grid>
+    ),
   },
 };

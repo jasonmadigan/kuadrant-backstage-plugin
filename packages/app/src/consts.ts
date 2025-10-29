@@ -34,12 +34,24 @@ export const DefaultMainMenuItems = {
       to: 'learning-paths',
       priority: 60,
     },
+    'default.kuadrant': {
+      title: 'Kuadrant',
+      icon: 'extension',
+      to: 'kuadrant',
+      priority: 55,
+    },
     'default.create': {
       title: 'Self-service',
       titleKey: 'menuItem.selfService',
       icon: 'add',
       to: 'create',
       priority: 50,
+    },
+    'default.admin.rbac': {
+      title: 'RBAC',
+      icon: 'admin',
+      to: 'rbac',
+      priority: 10,
     },
   },
 };

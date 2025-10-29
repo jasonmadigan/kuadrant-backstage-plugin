@@ -42,6 +42,7 @@ site
 
 # Local configuration files
 *.local.yaml
+!app-config.local.yaml
 
 # Sensitive credentials
 *-credentials.local.yaml
@@ -72,3 +73,6 @@ dynamic-plugins-root/*
 .ibm/pipelines/shared_dir/*
 .ibm/pipelines/artifact_dir/*
 .ibm/pipelines/env_override.local.sh
+
+# kuadrant dev setup binaries
+kuadrant-dev-setup/bin/

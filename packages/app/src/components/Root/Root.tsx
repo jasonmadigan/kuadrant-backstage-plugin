@@ -434,9 +434,11 @@ export const Root = ({ children }: PropsWithChildren<{}>) => {
       : menuItemArray.filter(mi => !mi.name.includes('admin'));
 
     if (isBottomMenuSection && !canDisplayRBACMenuItem && !loadingPermission) {
-      menuItemArray[0].children = menuItemArray[0].children?.filter(
-        mi => mi.name !== 'rbac',
-      );
+      if (menuItemArray[0]?.children) {
+        menuItemArray[0].children = menuItemArray[0].children.filter(
+          mi => mi.name !== 'rbac',
+        );
+      }
     }
     return (
       <>

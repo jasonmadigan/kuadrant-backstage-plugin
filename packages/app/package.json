@@ -18,6 +18,7 @@
     "prettier:fix": "prettier --ignore-unknown --write ."
   },
   "dependencies": {
+    "@backstage-community/plugin-rbac": "^1.45.1",
     "@backstage-community/plugin-rbac-common": "1.20.0",
     "@backstage/app-defaults": "1.6.5",
     "@backstage/catalog-model": "1.7.5",
@@ -43,6 +44,7 @@
     "@backstage/ui": "0.7.0",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.1",
+    "@internal/plugin-kuadrant": "0.1.0",
     "@mui/icons-material": "5.18.0",
     "@mui/material": "5.18.0",
     "@mui/styled-engine": "5.18.0",

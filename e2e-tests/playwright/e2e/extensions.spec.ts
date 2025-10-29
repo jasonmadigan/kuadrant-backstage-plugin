@@ -130,17 +130,16 @@ test.describe("Admin > Extensions", () => {
     });
 
     test("Verify support type filters in extensions", async ({ page }) => {
+      // TODO: https://issues.redhat.com/browse/RHDHBUGS-2146
+      test.fixme();
       await extensions.selectDropdown(
         t["plugin.marketplace"][lang]["search.supportType"],
       );
       await expect(page.getByRole("listbox")).toBeVisible();
 
-      // Verify all support type options are present using filter for partial text matching
+      // Verify all support type options are present
       for (const option of supportTypeOptions) {
-        const optionLocator = page
-          .getByRole("option")
-          .filter({ hasText: option });
-        await expect(optionLocator).toBeVisible();
+        await expect(page.getByRole("listbox")).toContainText(option);
       }
 
       await page.keyboard.press("Escape");

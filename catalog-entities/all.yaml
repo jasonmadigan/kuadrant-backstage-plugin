@@ -8,6 +8,7 @@ spec:
     - ./apis.yaml
     - ./components.yaml
     - ./groups.yaml
-    - ./systems.yaml
+    - ./kuadrant-users.yaml
     - ./resources.yaml
+    - ./systems.yaml
 
