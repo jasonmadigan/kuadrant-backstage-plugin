@@ -817,6 +817,177 @@ When APIKeyRequest is created (POST /requests):
 - User sees API key instantly
 - No approval queue needed
 
+## Frontend Permission System (2025-11-05)
+
+### Overview
+
+The Kuadrant frontend uses Backstage's permission framework for fine-grained access control. All UI actions (create, delete, approve, etc.) check permissions before rendering buttons/forms.
+
+### Custom Permission Hook
+
+**`src/utils/permissions.ts`** provides `useKuadrantPermission` hook that:
+- Handles both BasicPermission and ResourcePermission types without type bypasses
+- Returns `{ allowed, loading, error }` for proper error handling
+- Eliminates `as any` type casting found in raw `usePermission` usage
+
+**Usage**:
+```typescript
+import { useKuadrantPermission } from '../../utils/permissions';
+import { kuadrantApiProductCreatePermission } from '../../permissions';
+
+const { allowed, loading, error } = useKuadrantPermission(
+  kuadrantApiProductCreatePermission
+);
+
+if (loading) return <Progress />;
+if (error) return <ErrorMessage error={error} />;
+if (!allowed) return null; // hide button
+```
+
+### Permission Error Handling
+
+All components show detailed error messages when permission checks fail:
+```typescript
+if (permissionError) {
+  return (
+    <Box p={2}>
+      <Typography color="error">
+        Unable to check permissions: {permissionError.message}
+      </Typography>
+      <Typography variant="body2" color="textSecondary">
+        Permission: kuadrant.apiproduct.create
+      </Typography>
+      <Typography variant="body2" color="textSecondary">
+        Please try again or contact your administrator
+      </Typography>
+    </Box>
+  );
+}
+```
+
+This helps users and administrators diagnose permission service failures vs actual permission denial.
+
+### Ownership-Aware Actions
+
+Delete buttons for API keys use ownership checking via `canDeleteResource` helper:
+```typescript
+import { canDeleteResource } from '../../utils/permissions';
+
+// in render
+const canDelete = canDeleteResource(
+  row.spec.requestedBy.userId,  // owner
+  currentUserId,                 // current user
+  canDeleteOwnKey,               // permission to delete own
+  canDeleteAllKeys               // permission to delete all
+);
+
+if (!canDelete) return null;
+```
+
+This prevents showing delete buttons on keys users can't actually delete, avoiding confusing "permission denied" errors.
+
+### ResourcePermission Handling
+
+`kuadrantApiKeyRequestCreatePermission` is a ResourcePermission (scoped to 'apiproduct'). The custom hook handles this automatically:
+
+```typescript
+// frontend - no special handling needed
+const { allowed } = useKuadrantPermission(kuadrantApiKeyRequestCreatePermission);
+
+// backend - uses resource reference
+const decision = await permissions.authorize([{
+  permission: kuadrantApiKeyRequestCreatePermission,
+  resourceRef: `apiproduct:${namespace}/${name}`,
+}], { credentials });
+```
+
+### Component Patterns
+
+**1. Page-level access via PermissionGate**:
+```typescript
+export const KuadrantPage = () => (
+  <PermissionGate
+    permission={kuadrantApiProductListPermission}
+    errorMessage="You don't have permission to view the Kuadrant page"
+  >
+    <ResourceList />
+  </PermissionGate>
+);
+```
+
+**2. Action button gating**:
+```typescript
+{canCreateApiProduct && (
+  <Button onClick={() => setCreateDialogOpen(true)}>
+    Create API Product
+  </Button>
+)}
+```
+
+**3. Conditional table columns**:
+```typescript
+{
+  title: 'Actions',
+  render: (row) => {
+    if (!canDelete) return null;
+    return <IconButton onClick={() => handleDelete(row)} />;
+  },
+}
+```
+
+### Permission Documentation
+
+All permissions in `src/permissions.ts` include JSDoc comments explaining:
+- What the permission controls
+- When to use it
+- Whether it's BasicPermission or ResourcePermission
+- The difference between `.own` vs `.all` variants
+
+Example:
+```typescript
+/**
+ * permission to delete API keys owned by the current user
+ * allows users to revoke their own access
+ */
+export const kuadrantApiKeyDeleteOwnPermission = createPermission({
+  name: 'kuadrant.apikey.delete.own',
+  attributes: { action: 'delete' },
+});
+```
+
+### Common Patterns
+
+**Loading states**: Include permission loading in component loading logic:
+```typescript
+const loading = dataLoading || permissionLoading;
+if (loading) return <Progress />;
+```
+
+**Multiple permissions**: Check all permission errors:
+```typescript
+const permissionError = createError || deleteError || updateError;
+if (permissionError) {
+  // show error with failed permission name
+}
+```
+
+**Empty states**: Hide entire sections when users lack permissions:
+```typescript
+{canViewApprovalQueue && (
+  <Grid item>
+    <ApprovalQueueCard />
+  </Grid>
+)}
+```
+
+### Key Files
+
+- `src/utils/permissions.ts` - Custom hook and helper functions
+- `src/permissions.ts` - Permission definitions (must match backend)
+- `src/components/PermissionGate/PermissionGate.tsx` - Page-level access control
+- `src/components/KuadrantPage/KuadrantPage.tsx` - Example of multi-permission component
+- `src/components/ApiKeyManagementTab/ApiKeyManagementTab.tsx` - Example of ownership-aware actions
+
 ## API Key Management Model
 
 APIKeyRequests are the source of truth for API keys, not Kubernetes Secrets.
