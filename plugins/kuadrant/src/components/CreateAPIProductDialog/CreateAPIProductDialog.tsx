@@ -41,15 +41,38 @@ export const CreateAPIProductDialog = ({ open, onClose, onSuccess }: CreateAPIPr
   const [docsURL, setDocsURL] = useState('');
   const [openAPISpec, setOpenAPISpec] = useState('');
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [creating, setCreating] = useState(false);
 
   const { value: planPolicies, loading: planPoliciesLoading } = useAsync(async () => {
     const response = await fetchApi.fetch(`${backendUrl}/api/kuadrant/planpolicies`);
     const data = await response.json();
-    // filter to only show planpolicies in the same namespace as the apiproduct
-    return (data.items || []).filter((policy: any) =>
-      !namespace || policy.metadata.namespace === namespace
+    const allPolicies = data.items || [];
+
+    console.log('CreateAPIProductDialog: fetched planpolicies', {
+      total: allPolicies.length,
+      namespace,
+      policies: allPolicies.map((p: any) => ({
+        name: p.metadata.name,
+        namespace: p.metadata.namespace,
+        targetKind: p.spec?.targetRef?.kind,
+      })),
+    });
+
+    // filter to only show planpolicies that:
+    // 1. are in the same namespace as the apiproduct
+    // 2. target HTTPRoute (not Gateway - API products are for specific APIs, not infrastructure)
+    const filtered = allPolicies.filter((policy: any) =>
+      (!namespace || policy.metadata.namespace === namespace) &&
+      policy.spec?.targetRef?.kind === 'HTTPRoute'
     );
+
+    console.log('CreateAPIProductDialog: filtered planpolicies', {
+      count: filtered.length,
+      policies: filtered.map((p: any) => p.metadata.name),
+    });
+
+    return filtered;
   }, [backendUrl, fetchApi, open, namespace]);
 
   const handleAddTag = () => {
@@ -63,18 +86,55 @@ export const CreateAPIProductDialog = ({ open, onClose, onSuccess }: CreateAPIPr
     setTags(tags.filter(tag => tag !== tagToDelete));
   };
 
+  const validateEmail = (email: string): boolean => {
+    if (!email) return true; // optional field
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validateURL = (url: string): boolean => {
+    if (!url) return true; // optional field
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleCreate = async () => {
     setError('');
+    setFieldErrors({});
     setCreating(true);
 
     try {
+      // client-side validation
+      const errors: Record<string, string> = {};
+
       if (!selectedPlanPolicy) {
         throw new Error('Please select a PlanPolicy');
       }
 
+      if (contactEmail && !validateEmail(contactEmail)) {
+        errors.contactEmail = 'Invalid email format';
+      }
+
+      if (docsURL && !validateURL(docsURL)) {
+        errors.docsURL = 'Invalid URL format';
+      }
+
+      if (openAPISpec && !validateURL(openAPISpec)) {
+        errors.openAPISpec = 'Invalid URL format';
+      }
+
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors);
+        throw new Error('Please fix the validation errors');
+      }
+
       const [selectedPlanNamespace, selectedPlanName] = selectedPlanPolicy.split('/');
 
-      // Validate namespace matching
+      // validate namespace matching
       if (selectedPlanNamespace !== namespace) {
         throw new Error(`PlanPolicy must be in the same namespace as the APIProduct (${namespace}). Selected PlanPolicy is in ${selectedPlanNamespace}.`);
       }
@@ -121,14 +181,26 @@ export const CreateAPIProductDialog = ({ open, onClose, onSuccess }: CreateAPIPr
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'failed to create apiproduct');
+        let errorMessage = 'Failed to create API Product';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch (parseError) {
+          // if response isn't json, try to get text
+          const errorText = await response.text();
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        }
+        throw new Error(`${errorMessage} (HTTP ${response.status})`);
       }
 
       onSuccess();
       handleClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('Failed to create API Product:', errorMessage);
+      setError(errorMessage);
     } finally {
       setCreating(false);
     }
@@ -149,6 +221,7 @@ export const CreateAPIProductDialog = ({ open, onClose, onSuccess }: CreateAPIPr
     setDocsURL('');
     setOpenAPISpec('');
     setError('');
+    setFieldErrors({});
     onClose();
   };
 
@@ -298,9 +371,20 @@ export const CreateAPIProductDialog = ({ open, onClose, onSuccess }: CreateAPIPr
               fullWidth
               label="Contact Email"
               value={contactEmail}
-              onChange={e => setContactEmail(e.target.value)}
+              onChange={e => {
+                setContactEmail(e.target.value);
+                if (fieldErrors.contactEmail) {
+                  setFieldErrors(prev => {
+                    const next = { ...prev };
+                    delete next.contactEmail;
+                    return next;
+                  });
+                }
+              }}
               placeholder="api-team@example.com"
               margin="normal"
+              error={!!fieldErrors.contactEmail}
+              helperText={fieldErrors.contactEmail}
             />
           </Grid>
           <Grid item xs={6}>
@@ -318,9 +402,20 @@ export const CreateAPIProductDialog = ({ open, onClose, onSuccess }: CreateAPIPr
               fullWidth
               label="Docs URL"
               value={docsURL}
-              onChange={e => setDocsURL(e.target.value)}
+              onChange={e => {
+                setDocsURL(e.target.value);
+                if (fieldErrors.docsURL) {
+                  setFieldErrors(prev => {
+                    const next = { ...prev };
+                    delete next.docsURL;
+                    return next;
+                  });
+                }
+              }}
               placeholder="https://api.example.com/docs"
               margin="normal"
+              error={!!fieldErrors.docsURL}
+              helperText={fieldErrors.docsURL}
             />
           </Grid>
           <Grid item xs={6}>
@@ -328,9 +423,20 @@ export const CreateAPIProductDialog = ({ open, onClose, onSuccess }: CreateAPIPr
               fullWidth
               label="OpenAPI Spec URL"
               value={openAPISpec}
-              onChange={e => setOpenAPISpec(e.target.value)}
+              onChange={e => {
+                setOpenAPISpec(e.target.value);
+                if (fieldErrors.openAPISpec) {
+                  setFieldErrors(prev => {
+                    const next = { ...prev };
+                    delete next.openAPISpec;
+                    return next;
+                  });
+                }
+              }}
               placeholder="https://api.example.com/openapi.json"
               margin="normal"
+              error={!!fieldErrors.openAPISpec}
+              helperText={fieldErrors.openAPISpec}
             />
           </Grid>
         </Grid>

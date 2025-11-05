@@ -76,6 +76,7 @@ export interface APIProductSpec {
     namespace: string;
   };
   plans: Plan[];
+  apiEndpoint?: string;
   documentation?: {
     openAPISpec?: string;
     swaggerUI?: string;
@@ -88,6 +89,7 @@ export interface APIProductSpec {
     slack?: string;
     url?: string;
   };
+  approvalMode?: 'automatic' | 'manual';
 }
 
 export interface APIProductStatus {

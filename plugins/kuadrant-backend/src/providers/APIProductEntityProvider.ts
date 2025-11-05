@@ -20,6 +20,7 @@ interface APIProduct {
     description?: string;
     version?: string;
     tags?: string[];
+    apiEndpoint?: string;
     plans?: Array<{
       tier: string;
       description?: string;
@@ -95,20 +96,46 @@ export class APIProductEntityProvider implements EntityProvider {
       // transform apiproducts to backstage api entities
       const entities = apiProducts.map(product => this.transformToEntity(product));
       console.log(`apiproduct provider: transformed ${entities.length} entities`);
+      console.log('apiproduct provider: entity names:', entities.map(e => e.metadata.name).join(', '));
+
+      // log each entity for debugging
+      entities.forEach(entity => {
+        console.log(`apiproduct provider: entity ${entity.metadata.name}:`, {
+          name: entity.metadata.name,
+          title: entity.metadata.title,
+          hasLinks: !!entity.metadata.links,
+          linkCount: entity.metadata.links?.length || 0,
+          links: entity.metadata.links?.map(l => ({ title: l.title, url: l.url })),
+          annotations: Object.keys(entity.metadata.annotations || {}),
+        });
+      });
 
       // submit entities to catalog
       console.log('apiproduct provider: submitting entities to catalog');
-      await this.connection.applyMutation({
-        type: 'full',
-        entities: entities.map(entity => ({
-          entity,
-          locationKey: `kuadrant-apiproduct:${entity.metadata.namespace}/${entity.metadata.name}`,
-        })),
-      });
-
-      console.log(`apiproduct provider: synced ${entities.length} api products`);
+      try {
+        await this.connection.applyMutation({
+          type: 'full',
+          entities: entities.map(entity => ({
+            entity,
+            locationKey: `kuadrant-apiproduct:${entity.metadata.namespace}/${entity.metadata.name}`,
+          })),
+        });
+        console.log(`apiproduct provider: successfully synced ${entities.length} api products`);
+      } catch (error) {
+        console.error('apiproduct provider: error during catalog submission:', error);
+        throw error;
+      }
     } catch (error) {
       console.error('error refreshing apiproduct entities:', error);
+    }
+  }
+
+  private isValidUrl(urlString: string): boolean {
+    try {
+      const url = new URL(urlString);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+      return false;
     }
   }
 
@@ -127,6 +154,38 @@ export class APIProductEntityProvider implements EntityProvider {
     // build tags from product tags
     const tags = product.spec.tags || [];
 
+    // build links array similar to petstore (only include valid urls)
+    const links = [];
+    if (product.spec.apiEndpoint && this.isValidUrl(product.spec.apiEndpoint)) {
+      links.push({
+        url: product.spec.apiEndpoint,
+        title: displayName,
+        icon: 'dashboard',
+      });
+    } else if (product.spec.apiEndpoint) {
+      console.warn(`apiproduct provider: skipping invalid apiEndpoint URL for ${name}: ${product.spec.apiEndpoint}`);
+    }
+
+    if (product.spec.documentation?.openAPISpec && this.isValidUrl(product.spec.documentation.openAPISpec)) {
+      links.push({
+        url: product.spec.documentation.openAPISpec,
+        title: `${displayName} API`,
+        icon: 'docs',
+      });
+    } else if (product.spec.documentation?.openAPISpec) {
+      console.warn(`apiproduct provider: skipping invalid openAPISpec URL for ${name}: ${product.spec.documentation.openAPISpec}`);
+    }
+
+    if (product.spec.documentation?.docsURL && this.isValidUrl(product.spec.documentation.docsURL)) {
+      links.push({
+        url: product.spec.documentation.docsURL,
+        title: 'Documentation',
+        icon: 'docs',
+      });
+    } else if (product.spec.documentation?.docsURL) {
+      console.warn(`apiproduct provider: skipping invalid docsURL for ${name}: ${product.spec.documentation.docsURL}`);
+    }
+
     // create entity with proper backstage structure
     const entity: ApiEntity = {
       apiVersion: 'backstage.io/v1alpha1',
@@ -136,6 +195,7 @@ export class APIProductEntityProvider implements EntityProvider {
         namespace: 'default',
         title: displayName,
         description,
+        ...(links.length > 0 && { links }),
         annotations: {
           'backstage.io/managed-by-location': `kuadrant:${namespace}/${name}`,
           'backstage.io/managed-by-origin-location': `kuadrant:${namespace}/${name}`,

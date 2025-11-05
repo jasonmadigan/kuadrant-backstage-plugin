@@ -168,26 +168,33 @@ export const ApiProductInfoCard = () => {
       </Grid>
 
       <Grid item xs={12} md={6}>
-        <InfoCard title="Documentation">
-          {spec.documentation ? (
+        <InfoCard title="Links">
+          {(spec.apiEndpoint || spec.documentation?.docsURL || spec.documentation?.openAPISpec) ? (
             <Box p={2}>
               <Grid container spacing={2}>
-                {spec.documentation.docsURL && (
+                {spec.apiEndpoint && (
                   <Grid item xs={12}>
                     <Typography variant="body2">
-                      <strong>Documentation:</strong>{' '}
-                      <Link to={spec.documentation.docsURL} target="_blank">
-                        View Docs
+                      <Link to={spec.apiEndpoint} target="_blank">
+                        {spec.displayName || apiProductName}
                       </Link>
                     </Typography>
                   </Grid>
                 )}
-                {spec.documentation.openAPISpec && (
+                {spec.documentation?.openAPISpec && (
                   <Grid item xs={12}>
                     <Typography variant="body2">
-                      <strong>OpenAPI Spec:</strong>{' '}
                       <Link to={spec.documentation.openAPISpec} target="_blank">
-                        View Spec
+                        {spec.displayName || apiProductName} API
+                      </Link>
+                    </Typography>
+                  </Grid>
+                )}
+                {spec.documentation?.docsURL && (
+                  <Grid item xs={12}>
+                    <Typography variant="body2">
+                      <Link to={spec.documentation.docsURL} target="_blank">
+                        Documentation
                       </Link>
                     </Typography>
                   </Grid>
@@ -197,7 +204,7 @@ export const ApiProductInfoCard = () => {
           ) : (
             <Box p={2}>
               <Typography variant="body2" color="textSecondary">
-                No documentation links available
+                No links available
               </Typography>
             </Box>
           )}

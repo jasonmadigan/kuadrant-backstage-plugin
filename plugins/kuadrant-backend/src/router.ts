@@ -211,6 +211,49 @@ export async function createRouter({
       // inject plans into apiproduct spec
       apiProduct.spec.plans = plans;
 
+      // fetch the httproute referenced by planpolicy to derive api endpoint
+      const targetRef = planPolicy.spec?.targetRef;
+      if (targetRef?.kind === 'HTTPRoute' && targetRef?.name) {
+        try {
+          const httpRouteNamespace = targetRef.namespace || planPolicyRef.namespace;
+          const httpRoute = await k8sClient.getCustomResource(
+            'gateway.networking.k8s.io',
+            'v1',
+            httpRouteNamespace,
+            'httproutes',
+            targetRef.name,
+          );
+
+          // extract hostname and path from httproute
+          const hostnames = httpRoute.spec?.hostnames || [];
+          const rules = httpRoute.spec?.rules || [];
+
+          if (hostnames.length > 0) {
+            // use first hostname
+            const hostname = hostnames[0];
+
+            // extract first path if available
+            let path = '';
+            if (rules.length > 0 && rules[0].matches) {
+              const firstMatch = rules[0].matches?.find((m: any) => m.path);
+              if (firstMatch?.path?.value) {
+                path = firstMatch.path.value;
+              }
+            }
+
+            // construct api endpoint url
+            const protocol = 'https'; // assume https for production apis
+            const endpoint = `${protocol}://${hostname}${path}`;
+            apiProduct.spec.apiEndpoint = endpoint;
+
+            console.log(`derived api endpoint from httproute ${targetRef.name}: ${endpoint}`);
+          }
+        } catch (error) {
+          // log error but don't fail the apiproduct creation
+          console.warn(`failed to fetch httproute ${targetRef.name} for endpoint derivation:`, error);
+        }
+      }
+
       // set the owner to the authenticated user
       if (!apiProduct.spec.contact) {
         apiProduct.spec.contact = {};
@@ -291,12 +334,15 @@ export async function createRouter({
 
       const data = await k8sClient.listCustomResources('extensions.kuadrant.io', 'v1alpha1', 'planpolicies');
 
-      // filter to only return name and namespace to avoid leaking plan details
+      // filter to return metadata and targetRef (but not plan details)
       const filtered = {
         items: (data.items || []).map((policy: any) => ({
           metadata: {
             name: policy.metadata.name,
             namespace: policy.metadata.namespace,
+          },
+          spec: {
+            targetRef: policy.spec?.targetRef,
           },
         })),
       };
