@@ -133,9 +133,10 @@ export const MyApiKeysCard = () => {
     {
       title: 'Reason',
       render: (row: APIKeyRequest) => {
-        if (row.status?.phase === 'Rejected' && row.status.reason) {
+        if (row.status?.reason) {
+          const color = row.status.phase === 'Rejected' ? 'error' : 'textPrimary';
           return (
-            <Typography variant="body2" color="error">
+            <Typography variant="body2" color={color}>
               {row.status.reason}
             </Typography>
           );

@@ -159,11 +159,38 @@ export const kuadrantApiKeyRequestReadAllPermission = createPermission({
 
 /**
  * permission to approve or reject API key requests
- * typically granted to API owners and platform engineers
+ * typically granted to API admins who can manage all requests
  */
 export const kuadrantApiKeyRequestUpdatePermission = createPermission({
   name: 'kuadrant.apikeyrequest.update',
   attributes: { action: 'update' },
+});
+
+/**
+ * permission to update API key requests for API products owned by the current user
+ * allows API owners to approve/reject requests for their own APIs
+ */
+export const kuadrantApiKeyRequestUpdateOwnPermission = createPermission({
+  name: 'kuadrant.apikeyrequest.update.own',
+  attributes: { action: 'update' },
+});
+
+/**
+ * permission to delete API key requests created by the current user
+ * allows users to cancel their own pending requests
+ */
+export const kuadrantApiKeyRequestDeleteOwnPermission = createPermission({
+  name: 'kuadrant.apikeyrequest.delete.own',
+  attributes: { action: 'delete' },
+});
+
+/**
+ * permission to delete any API key request regardless of ownership
+ * for platform engineers/admins
+ */
+export const kuadrantApiKeyRequestDeleteAllPermission = createPermission({
+  name: 'kuadrant.apikeyrequest.delete.all',
+  attributes: { action: 'delete' },
 });
 
 export const kuadrantApiKeyRequestListPermission = createPermission({
@@ -227,6 +254,9 @@ export const kuadrantPermissions = [
   kuadrantApiKeyRequestReadOwnPermission,
   kuadrantApiKeyRequestReadAllPermission,
   kuadrantApiKeyRequestUpdatePermission,
+  kuadrantApiKeyRequestUpdateOwnPermission,
+  kuadrantApiKeyRequestDeleteOwnPermission,
+  kuadrantApiKeyRequestDeleteAllPermission,
   kuadrantApiKeyRequestListPermission,
   kuadrantApiKeyReadOwnPermission,
   kuadrantApiKeyReadAllPermission,
