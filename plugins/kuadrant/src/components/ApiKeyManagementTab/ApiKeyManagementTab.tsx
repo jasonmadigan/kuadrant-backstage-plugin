@@ -14,18 +14,10 @@ import {
   Chip,
   Grid,
   Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
   Tabs,
   Tab,
   Menu,
+  MenuItem,
   Tooltip,
   CircularProgress,
 } from '@material-ui/core';
@@ -37,7 +29,7 @@ import HourglassEmptyIcon from '@material-ui/icons/HourglassEmpty';
 import CancelIcon from '@material-ui/icons/Cancel';
 import AddIcon from '@material-ui/icons/Add';
 import MoreVertIcon from '@material-ui/icons/MoreVert';
-import { APIKeyRequest } from '../../types/api-management';
+import { APIKeyRequest, APIProduct, Plan } from '../../types/api-management';
 import {
   kuadrantApiKeyRequestCreatePermission,
   kuadrantApiKeyDeleteOwnPermission,
@@ -47,25 +39,7 @@ import {
 import { useKuadrantPermission, canDeleteResource } from '../../utils/permissions';
 import { EditAPIKeyRequestDialog } from '../EditAPIKeyRequestDialog';
 import { ConfirmDeleteDialog } from '../ConfirmDeleteDialog';
-
-interface APIProduct {
-  metadata: {
-    name: string;
-    namespace: string;
-  };
-  spec: {
-    plans?: Array<{
-      tier: string;
-      description?: string;
-      limits?: any;
-    }>;
-  };
-}
-
-interface Plan {
-  tier: string;
-  limits: any;
-}
+import { RequestApiKeyDialog } from '../RequestApiKeyDialog';
 
 export interface ApiKeyManagementTabProps {
   namespace?: string;
@@ -81,12 +55,7 @@ export const ApiKeyManagementTab = ({ namespace: propNamespace }: ApiKeyManageme
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [refresh, setRefresh] = useState(0);
   const [userId, setUserId] = useState<string>('');
-  const [userEmail, setUserEmail] = useState<string>('');
-  const [open, setOpen] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState('');
-  const [useCase, setUseCase] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
+  const [requestDialogOpen, setRequestDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [requestToEdit, setRequestToEdit] = useState<APIKeyRequest | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ top: number; left: number } | null>(null);
@@ -104,9 +73,7 @@ export const ApiKeyManagementTab = ({ namespace: propNamespace }: ApiKeyManageme
 
   useAsync(async () => {
     const identity = await identityApi.getBackstageIdentity();
-    const profile = await identityApi.getProfileInfo();
     setUserId(identity.userEntityRef);
-    setUserEmail(profile.email || '');
   }, [identityApi]);
 
   const { value: requests, loading: requestsLoading, error: requestsError } = useAsync(async () => {
@@ -251,56 +218,6 @@ export const ApiKeyManagementTab = ({ namespace: propNamespace }: ApiKeyManageme
       }
       return newSet;
     });
-  };
-
-  const handleRequestAccess = async () => {
-    if (!selectedPlan) return;
-
-    setCreating(true);
-    setCreateError(null);
-    try {
-      const response = await fetchApi.fetch(`${backendUrl}/api/kuadrant/requests`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          apiName: apiProductName,
-          apiNamespace: namespace,
-          userId,
-          userEmail,
-          planTier: selectedPlan,
-          useCase: useCase.trim() || '',
-          namespace,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `failed to create request: ${response.status}`);
-      }
-
-      alertApi.post({
-        message: 'API access request submitted successfully',
-        severity: 'success',
-        display: 'transient',
-      });
-
-      setOpen(false);
-      setSelectedPlan('');
-      setUseCase('');
-      setRefresh(r => r + 1);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'unknown error occurred';
-      alertApi.post({
-        message: `Failed to create API access request: ${errorMessage}`,
-        severity: 'error',
-        display: 'transient',
-      });
-      setCreateError(errorMessage);
-    } finally {
-      setCreating(false);
-    }
   };
 
   const detailPanelConfig = useMemo(() => [
@@ -711,7 +628,7 @@ func main() {
                 variant="contained"
                 color="primary"
                 startIcon={<AddIcon />}
-                onClick={() => setOpen(true)}
+                onClick={() => setRequestDialogOpen(true)}
                 disabled={plans.length === 0}
               >
                 Request API Access
@@ -791,59 +708,13 @@ func main() {
         )}
       </Grid>
 
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Request API Access</DialogTitle>
-        <DialogContent>
-          {createError && (
-            <Box mb={2} p={2} bgcolor="error.main" color="error.contrastText" borderRadius={1}>
-              <Typography variant="body2">{createError}</Typography>
-            </Box>
-          )}
-          <FormControl fullWidth margin="normal" disabled={creating}>
-            <InputLabel>Select Tier</InputLabel>
-            <Select
-              value={selectedPlan}
-              onChange={(e) => setSelectedPlan(e.target.value as string)}
-              disabled={creating}
-            >
-              {plans.map((plan: Plan) => {
-                const limitDesc = Object.entries(plan.limits || {})
-                  .map(([key, val]) => `${val} per ${key}`)
-                  .join(', ');
-                return (
-                  <MenuItem key={plan.tier} value={plan.tier}>
-                    {plan.tier} {limitDesc ? `(${limitDesc})` : ''}
-                  </MenuItem>
-                );
-              })}
-            </Select>
-          </FormControl>
-          <TextField
-            label="Use Case (optional)"
-            placeholder="Describe how you plan to use this API"
-            multiline
-            rows={3}
-            fullWidth
-            margin="normal"
-            value={useCase}
-            onChange={(e) => setUseCase(e.target.value)}
-            helperText="Explain your intended use of this API for admin review"
-            disabled={creating}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpen(false)} disabled={creating}>Cancel</Button>
-          <Button
-            onClick={handleRequestAccess}
-            color="primary"
-            variant="contained"
-            disabled={!selectedPlan || creating}
-            startIcon={creating ? <CircularProgress size={16} color="inherit" /> : undefined}
-          >
-            {creating ? 'Submitting...' : 'Submit Request'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <RequestApiKeyDialog
+        open={requestDialogOpen}
+        onClose={() => setRequestDialogOpen(false)}
+        onSuccess={() => setRefresh(r => r + 1)}
+        apiProduct={apiProduct as APIProduct}
+        plans={plans}
+      />
 
       <Menu
         id="actions-menu"
@@ -881,8 +752,14 @@ func main() {
 
       <ConfirmDeleteDialog
         open={deleteDialogState.open}
-        title="Delete Request"
-        description={`Are you sure you want to delete this ${deleteDialogState.request?.status?.phase === 'Approved' ? 'API key' : 'request'}?`}
+        title={deleteDialogState.request?.status?.phase === 'Approved' ? 'Delete API Key' : 'Delete Request'}
+        description={
+          deleteDialogState.request?.status?.phase === 'Approved'
+            ? 'This will permanently revoke this API key. Applications using this key will no longer be able to authenticate.'
+            : 'Are you sure you want to delete this request?'
+        }
+        severity={deleteDialogState.request?.status?.phase === 'Approved' ? 'high' : 'normal'}
+        confirmText={deleteDialogState.request?.status?.phase === 'Approved' ? 'delete' : undefined}
         deleting={deleting !== null}
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}

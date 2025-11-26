@@ -1,5 +1,5 @@
 import { HttpAuthService, RootConfigService, UserInfoService, PermissionsService } from '@backstage/backend-plugin-api';
-import { InputError, NotAllowedError } from '@backstage/errors';
+import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { createPermissionIntegrationRouter } from '@backstage/plugin-permission-node';
 import { z } from 'zod';
@@ -825,6 +825,61 @@ export async function createRouter({
         res.status(403).json({ error: error.message });
       } else {
         res.status(500).json({ error: 'failed to fetch user api key requests' });
+      }
+    }
+  });
+
+  // get single api key request
+  router.get('/requests/:namespace/:name', async (req, res) => {
+    try {
+      const credentials = await httpAuth.credentials(req);
+      const { userEntityRef } = await getUserIdentity(req, httpAuth, userInfo);
+
+      const { namespace, name } = req.params;
+
+      const request = await k8sClient.getCustomResource(
+        'extensions.kuadrant.io',
+        'v1alpha1',
+        namespace,
+        'apikeyrequests',
+        name,
+      );
+
+      const spec = request.spec as any;
+      const ownerId = spec.requestedBy?.userId;
+
+      // try read all permission first
+      const readAllDecision = await permissions.authorize(
+        [{ permission: kuadrantApiKeyRequestReadAllPermission }],
+        { credentials },
+      );
+
+      if (readAllDecision[0].result !== AuthorizeResult.ALLOW) {
+        // fallback to read own permission
+        const readOwnDecision = await permissions.authorize(
+          [{ permission: kuadrantApiKeyRequestReadOwnPermission }],
+          { credentials },
+        );
+
+        if (readOwnDecision[0].result !== AuthorizeResult.ALLOW) {
+          throw new NotAllowedError('unauthorised');
+        }
+
+        // verify ownership
+        if (ownerId !== userEntityRef) {
+          throw new NotAllowedError('you can only view your own requests');
+        }
+      }
+
+      res.json(request);
+    } catch (error) {
+      console.error('error fetching api key request:', error);
+      if (error instanceof NotAllowedError) {
+        res.status(403).json({ error: error.message });
+      } else if (error instanceof NotFoundError) {
+        res.status(404).json({ error: error.message });
+      } else {
+        res.status(500).json({ error: error instanceof Error ? error.message : 'internal error' });
       }
     }
   });

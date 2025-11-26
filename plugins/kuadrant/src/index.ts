@@ -7,6 +7,9 @@ export {
   EntityKuadrantApiProductInfoContent,
   KuadrantApprovalQueueCard,
   PlanPolicyDetailPage,
+  ApiProductsPage,
+  ApiKeysPage,
+  ApiKeyDetailPage,
 } from './plugin';
 export { ApiAccessCard } from './components/ApiAccessCard';
 export { ApiKeyManagementTab } from './components/ApiKeyManagementTab';

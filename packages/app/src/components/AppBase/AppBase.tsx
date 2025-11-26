@@ -24,6 +24,9 @@ import { RbacPage } from '@backstage-community/plugin-rbac';
 import {
   KuadrantPage,
   PlanPolicyDetailPage,
+  ApiProductsPage,
+  ApiKeysPage,
+  ApiKeyDetailPage,
 } from '@kuadrant/kuadrant-backstage-plugin-frontend';
 import DynamicRootContext from '@red-hat-developer-hub/plugin-utils';
 
@@ -142,6 +145,12 @@ const AppBase = () => {
               <Route
                 path="/kuadrant/planpolicy/:namespace/:name"
                 element={<PlanPolicyDetailPage />}
+              />
+              <Route path="/kuadrant/api-products" element={<ApiProductsPage />} />
+              <Route path="/kuadrant/api-keys" element={<ApiKeysPage />} />
+              <Route
+                path="/kuadrant/api-keys/:namespace/:name"
+                element={<ApiKeyDetailPage />}
               />
               <Route path="/kuadrant" element={<KuadrantPage />} />
               <Route path="/rbac" element={<RbacPage />} />

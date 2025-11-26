@@ -37,8 +37,21 @@ export const DefaultMainMenuItems = {
     'default.kuadrant': {
       title: 'Kuadrant',
       icon: 'extension',
-      to: 'kuadrant',
       priority: 55,
+    },
+    'default.kuadrant.api-products': {
+      title: 'API Products',
+      icon: 'storefront',
+      to: 'kuadrant/api-products',
+      parent: 'default.kuadrant',
+      priority: 20,
+    },
+    'default.kuadrant.api-keys': {
+      title: 'API Keys',
+      icon: 'security',
+      to: 'kuadrant/api-keys',
+      parent: 'default.kuadrant',
+      priority: 10,
     },
     'default.create': {
       title: 'Self-service',

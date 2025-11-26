@@ -83,3 +83,31 @@ export const PlanPolicyDetailPage = kuadrantPlugin.provide(
     },
   }),
 );
+
+export const ApiProductsPage = kuadrantPlugin.provide(
+  createRoutableExtension({
+    name: 'ApiProductsPage',
+    component: () =>
+      import('./components/ApiProductsPage').then(m => m.ApiProductsPage),
+    mountPoint: rootRouteRef,
+  }),
+);
+
+export const ApiKeysPage = kuadrantPlugin.provide(
+  createRoutableExtension({
+    name: 'ApiKeysPage',
+    component: () =>
+      import('./components/ApiKeysPage').then(m => m.ApiKeysPage),
+    mountPoint: rootRouteRef,
+  }),
+);
+
+export const ApiKeyDetailPage = kuadrantPlugin.provide(
+  createComponentExtension({
+    name: 'ApiKeyDetailPage',
+    component: {
+      lazy: () =>
+        import('./components/ApiKeyDetailPage').then(m => m.ApiKeyDetailPage),
+    },
+  }),
+);
