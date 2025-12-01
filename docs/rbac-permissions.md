@@ -412,44 +412,110 @@ yarn user:default   # restore default permissions
 
 After switching roles, restart with `yarn dev`.
 
-## Security Considerations
+## Backend Security Principles
 
-### Input Validation
+All backend code in `plugins/kuadrant-backend/src/router.ts` must follow these security tenets.
 
-All mutating endpoints use Zod schemas to validate request bodies with explicit whitelists:
+### 1. Never Trust Client Input
+
+All data from HTTP requests is untrusted. Use Zod schemas to validate with explicit whitelists:
 
 ```typescript
+// bad - accepts arbitrary client data
+const patch = req.body;
+
+// good - validates against whitelist
 const patchSchema = z.object({
   spec: z.object({
     displayName: z.string().optional(),
     description: z.string().optional(),
-    // only allowed fields - targetRef, namespace, etc. excluded
+    // targetRef, namespace NOT included - immutable
   }).partial(),
 });
+const parsed = patchSchema.safeParse(req.body);
+if (!parsed.success) {
+  return res.status(400).json({ error: 'invalid patch' });
+}
 ```
 
-### Ownership Immutability
+### 2. Authentication Required, No Fallbacks
 
-PATCH endpoints explicitly prevent modification of ownership annotation:
+All endpoints require valid authentication. Never use `{ allow: ['user', 'none'] }`:
 
 ```typescript
-// prevent ownership hijacking
+// bad - allows unauthenticated access
+const credentials = await httpAuth.credentials(req, { allow: ['user', 'none'] });
+
+// good - requires authentication
+const credentials = await httpAuth.credentials(req);
+if (!credentials || !credentials.principal) {
+  throw new NotAllowedError('authentication required');
+}
+```
+
+### 3. Pure RBAC Permission Model
+
+Authorization must only use Backstage RBAC permissions, not group membership checks:
+
+```typescript
+// bad - dual authorization paths
+const { isApiOwner } = await getUserIdentity(...);
+if (!isApiOwner) throw new NotAllowedError('must be api owner');
+
+// good - pure RBAC
+const decision = await permissions.authorize(
+  [{ permission: kuadrantApiProductUpdatePermission }],
+  { credentials }
+);
+if (decision[0].result !== AuthorizeResult.ALLOW) {
+  throw new NotAllowedError('unauthorised');
+}
+```
+
+### 4. Validate Field Mutability
+
+In PATCH endpoints, exclude immutable fields from validation schemas:
+- `namespace`, `name` (Kubernetes identifiers)
+- `targetRef` (infrastructure references)
+- `userId`, `requestedBy` (ownership)
+- Fields managed by controllers (e.g., `plans` in APIProduct)
+
+### 5. Ownership Immutability
+
+PATCH endpoints must prevent modification of ownership:
+
+```typescript
 if (req.body.metadata?.annotations) {
   delete req.body.metadata.annotations['backstage.io/owner'];
 }
 ```
 
-### Authentication Required
+### 6. Follow Namespace Organisation
 
-All endpoints require valid authentication with no guest fallbacks:
+Never accept `namespace` from client input for resource creation. Use the namespace of the referenced resource:
 
 ```typescript
-const credentials = await httpAuth.credentials(req);
+// bad - client controls namespace
+const { namespace, apiName } = req.body;
 
-if (!credentials || !credentials.principal) {
-  throw new NotAllowedError('authentication required');
-}
+// good - use API's namespace
+const { apiName, apiNamespace } = req.body;
+await k8sClient.createCustomResource('apikeyrequests', apiNamespace, ...);
 ```
+
+### 7. Explicit Error Responses
+
+Return appropriate HTTP status codes:
+- 400 for validation errors (`InputError`)
+- 403 for permission denied (`NotAllowedError`)
+- 500 for unexpected errors
+
+### Reference Examples
+
+Good patterns in `router.ts`:
+- `router.patch('/requests/:namespace/:name', ...)` - whitelist validation, ownership checks
+- `router.post('/requests/:namespace/:name/approve', ...)` - Zod validation, proper auth
+- `router.patch('/apiproducts/:namespace/:name', ...)` - comprehensive field whitelist
 
 ## Frontend Permission Checks
 
