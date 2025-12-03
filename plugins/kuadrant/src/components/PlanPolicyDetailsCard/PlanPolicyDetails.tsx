@@ -32,9 +32,10 @@ export const PlanPolicyDetails: React.FC<PlanPolicyDetailsProps> = ({
     <Box
       mt={includeTopMargin ? 1 : 0}
       p={2}
-      bgcolor="#f5f5f5"
+      bgcolor="background.default"
       borderRadius={1}
-      border="1px solid #e0e0e0"
+      border="1px solid"
+      borderColor="divider"
     >
       {selectedPolicy ? (
         <>
