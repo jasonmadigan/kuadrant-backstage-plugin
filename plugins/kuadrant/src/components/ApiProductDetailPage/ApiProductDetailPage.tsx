@@ -17,6 +17,7 @@ import {
   Link,
   Breadcrumbs,
 } from "@backstage/core-components";
+import { OpenApiDefinitionWidget } from "@backstage/plugin-api-docs";
 import {
   Box,
   Typography,
@@ -249,7 +250,7 @@ export const ApiProductDetailPage = () => {
             textColor="primary"
           >
             <Tab label="Overview" />
-            {product.spec?.documentation?.openAPISpecURL && <Tab label="Definition" />}
+            {(product.status?.openapi?.raw || product.spec?.documentation?.openAPISpecURL) && <Tab label="Definition" />}
           </Tabs>
         </Box>
 
@@ -297,14 +298,24 @@ export const ApiProductDetailPage = () => {
           </InfoCard>
         )}
 
-        {selectedTab === 1 && product.spec?.documentation?.openAPISpecURL && (
+        {selectedTab === 1 && (
           <InfoCard title="API Definition">
-            <Typography variant="body2" color="textSecondary">
-              View the OpenAPI specification at:{" "}
-              <Link to={product.spec.documentation.openAPISpecURL} target="_blank">
-                {product.spec.documentation.openAPISpecURL}
-              </Link>
-            </Typography>
+            {product.status?.openapi?.raw ? (
+              <OpenApiDefinitionWidget definition={product.status.openapi.raw} />
+            ) : (
+              <Typography variant="body2" color="textSecondary">
+                {product.spec?.documentation?.openAPISpecURL ? (
+                  <>
+                    OpenAPI specification not yet synced. View at:{" "}
+                    <Link to={product.spec.documentation.openAPISpecURL} target="_blank">
+                      {product.spec.documentation.openAPISpecURL}
+                    </Link>
+                  </>
+                ) : (
+                  "No OpenAPI specification available for this API product."
+                )}
+              </Typography>
+            )}
           </InfoCard>
         )}
       </Content>
