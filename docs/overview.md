@@ -1,12 +1,10 @@
 # Kuadrant Backstage Plugin Overview
 
-The Kuadrant Backstage Plugin brings API access management, Gateway visibility, and MCP (Model Context Protocol) inspection into Backstage. Platform engineers can monitor MCP infrastructure, while API owners and consumers use the Developer Portal to publish APIs and manage access.
-
-The Developer Portal brings self-service API access management to Kubernetes-native organizations. It bridges the gap between API providers who want to share their services and developers who need to consume them, providing a structured workflow for API discovery, access requests, and credential management.
+The Kuadrant Backstage Plugin lets you view Gateways, monitor MCP (Model Context Protocol) resources, and test MCP tools and prompts in Backstage. Its Developer Portal lets API owners publish APIs and consumers discover them, request access, and manage credentials.
 
 ## Gateway Visibility
 
-The plugin shows the Gateways targeted by MCPGatewayExtension resources and the HTTPRoutes attached to those Gateways. This connects the MCP service view to the underlying Gateway API routing infrastructure.
+The plugin shows the Gateways targeted by MCPGatewayExtension resources and the HTTPRoutes attached to those Gateways.
 
 You can:
 
@@ -19,29 +17,29 @@ A Gateway is healthy when both its `Accepted` and `Programmed` conditions are `T
 
 ## MCP Management
 
-The MCP management overview brings Gateways, gateway extensions, server registrations, and attached HTTPRoutes together. Summary cards show Gateway health and registered server readiness, while searchable tables help you find resources by name, namespace, or status.
+The MCP management overview shows Gateways, gateway extensions, server registrations, and attached HTTPRoutes. Summary cards report Gateway health and server readiness. You can filter the resource tables by name, namespace, or status.
 
 Two MCP resources describe the gateway and its servers:
 
-- **MCPGatewayExtension** extends a Gateway with MCP capabilities and identifies the Gateway through `spec.targetRef`.
-- **MCPServerRegistration** registers an MCP server behind an HTTPRoute, with a prefix that identifies its tools through the gateway.
+- **MCPGatewayExtension** adds MCP support to the Gateway referenced by `spec.targetRef`.
+- **MCPServerRegistration** registers an MCP server behind an HTTPRoute and sets a prefix for its tools.
 
-Resource detail views show metadata, status conditions, target references, and YAML. A registered server is shown as online when its `Ready` condition is `True`.
+Resource detail views show metadata, status conditions, target references, and YAML. A registered server is online when its `Ready` condition is `True`.
 
-The Backstage permission framework controls access to Gateway, HTTPRoute, gateway extension, and server registration views. The backend uses its configured Kubernetes identity to discover these resources.
+Backstage permissions control access to Gateway, HTTPRoute, gateway extension, and server registration views. The backend uses its configured Kubernetes identity to discover these resources.
 
 ## MCP Inspector
 
-The MCP Inspector lets you explore what a gateway exposes and test its tools and prompts from Backstage:
+Use the MCP Inspector to discover and test a gateway's tools and prompts from Backstage:
 
 - Discover available tools and prompts, and search the tool catalog
-- Build tool inputs from JSON schemas and validate them before execution
+- Enter tool inputs in forms generated from JSON schemas and validate them before execution
 - Run tools and inspect their results alongside the JSON-RPC request and response
-- Supply prompt arguments and review the generated prompt text
+- Enter prompt arguments and review the generated prompt text
 - Connect using automatic protocol discovery or an explicit protocol version
 - Provide a bearer token when the gateway requires authentication
 
-The Backstage backend relays Inspector requests to the selected MCP gateway. Bearer tokens and MCP session IDs are held in browser memory, and the `kuadrant.mcp.inspector.use` permission controls access to the Inspector.
+The Backstage backend relays Inspector requests to the selected MCP gateway. Bearer tokens and MCP session IDs stay in browser memory. The `kuadrant.mcp.inspector.use` permission controls access to the Inspector.
 
 See the [MCP Inspector guide](mcp-inspector.md) for connection details and usage.
 
