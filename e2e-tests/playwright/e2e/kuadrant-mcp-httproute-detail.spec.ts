@@ -19,7 +19,7 @@ test.describe("Kuadrant MCP HTTPRoute detail", () => {
 
   test.beforeEach(async ({ page }) => {
     common = new Common(page);
-    await common.loginAsGuest();
+    await common.dexQuickLogin("owner1@kuadrant.local");
     await page.goto("/kuadrant/mcp-management");
     await waitForMcpPageReady(page);
   });

@@ -47,7 +47,7 @@ test.describe("Kuadrant Skeleton Loaders", () => {
 
     // Eventually, skeletons should disappear and real content should load
     await expect(async () => {
-      const spinner = page.locator('[role="progressbar"]:visible');
+      const spinner = page.locator('main [role="progressbar"]:visible');
       await expect(spinner).toHaveCount(0);
 
       // No skeletons should be visible after loading
@@ -83,7 +83,7 @@ test.describe("Kuadrant Skeleton Loaders", () => {
 
     // Wait for page to fully load
     await expect(async () => {
-      const spinner = page.locator('[role="progressbar"]:visible');
+      const spinner = page.locator('main [role="progressbar"]:visible');
       await expect(spinner).toHaveCount(0);
       const visibleSkeletons = page.locator(".MuiSkeleton-root:visible");
       await expect(visibleSkeletons).toHaveCount(0);
@@ -154,7 +154,7 @@ test.describe("Kuadrant Skeleton Loaders", () => {
 
       // Check that we're using skeletons OR the page is already loaded
       await expect(async () => {
-        const progressBars = page.locator('[role="progressbar"]:visible');
+        const progressBars = page.locator('main [role="progressbar"]:visible');
         const skeletons = page.locator(".MuiSkeleton-root:visible");
         const progressCount = await progressBars.count();
         const skeletonCount = await skeletons.count();
