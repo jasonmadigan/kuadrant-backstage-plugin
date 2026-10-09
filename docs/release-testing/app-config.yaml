@@ -1,0 +1,8 @@
+permission:
+  enabled: true
+  rbac:
+    policies-csv-file: /opt/app-root/etc/rbac-policy.csv
+    policyFileReload: true
+catalog:
+  rules:
+    - allow: [Component, System, API, Resource, Location]
