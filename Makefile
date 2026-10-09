@@ -19,6 +19,7 @@ RHDH_IMAGE = $(RHDH_IMAGE_REPOSITORY):$(RHDH_IMAGE_TAG)
 
 export OCP_VERSION KUADRANT_VERSION RHDH_BASE_IMAGE RHDH_IMAGE_REPOSITORY
 export RHDH_IMAGE_TAG RHDH_CHART_VERSION RHDH_URL DEX_URL
+export BASE_URL
 
 help:
 	@echo "Dynamic-plugin RHDH testing:"
@@ -28,10 +29,12 @@ help:
 	@echo "  make e2e-dynamic  run the full build, test and teardown path"
 	@echo "  make teardown     delete the oinc cluster"
 	@echo ""
-	@echo "Existing OpenShift cluster (active kubectl context):"
+	@echo "Deployed Backstage/RHDH:"
+	@echo "  make e2e-remote BASE_URL=https://backstage.example.com  run the suite against that deployment"
+	@echo ""
+	@echo "Local app against an existing OpenShift cluster (active kubectl context):"
 	@echo "  make remote-setup     check prerequisites and create owned test fixtures"
 	@echo "  make remote-dev       start the local app and Dex against that cluster"
-	@echo "  make e2e-remote       run the suite against the local app"
 	@echo "  make remote-teardown  remove only this run's fixtures, retaining the cluster"
 	@echo ""
 	@echo "Override versions and image settings on the make command line."
@@ -87,9 +90,7 @@ remote-dev:
 	node e2e-tests/remote/cluster.mjs dev
 
 e2e-remote:
-	BASE_URL=http://localhost:7007 ./e2e-tests/rhdh/wait-for-catalog.sh
-	node e2e-tests/remote/cluster.mjs check
-	cd e2e-tests && BASE_URL=http://localhost:3000 PLAYWRIGHT_HTML_OPEN=never yarn test $(PLAYWRIGHT_ARGS)
+	node e2e-tests/remote/run.mjs $(PLAYWRIGHT_ARGS)
 
 remote-teardown:
 	node e2e-tests/remote/cluster.mjs teardown

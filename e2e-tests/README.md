@@ -25,12 +25,20 @@ yarn test:smoke
 
 ## Prerequisites
 
-For an existing OpenShift release-test cluster, use `make remote-setup`,
-`make remote-dev`, and `make e2e-remote` from the repository root. Afterwards,
-`make remote-teardown` removes this run's fixtures and retains the cluster.
-If the checkout was deleted, teardown can recover the fixture ownership from
-the cluster before cleanup; run it before setting up the fresh clone.
-See [existing-cluster prerequisites and commands](../docs/e2e-testing.md#running-against-an-existing-openshift-cluster).
+To test a deployed Backstage/RHDH, run from the repository root:
+
+```bash
+make e2e-deps
+make e2e-remote BASE_URL=https://backstage.example.com
+```
+
+This tests the plugins loaded by that deployment. It needs no local app,
+kubeconfig or `.e2e-remote/` state. The deployment must already provide the
+suite's Dex personas, RBAC and demo resources; see
+[deployment prerequisites](../docs/e2e-testing.md#running-against-a-deployed-backstage).
+
+For local plugin development against a remote cluster, see the separate
+[local-app workflow](../docs/e2e-testing.md#local-backstage-against-an-existing-openshift-cluster).
 
 CI uses oinc (Kuadrant + MCP Gateway), not kind. Locally, match that or use kind as a lighter fallback:
 

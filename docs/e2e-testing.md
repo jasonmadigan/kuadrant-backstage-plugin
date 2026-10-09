@@ -43,12 +43,48 @@ yarn test --grep "permissions matrix"  # RBAC tests only
 
 Kind has no MCP Gateway operator. Prefer oinc when exercising MCP. Do not run kind and oinc at the same time (both write `.env`).
 
-## Running against an existing OpenShift cluster
+## Running against a deployed Backstage
 
-Use this path for release testing against an already installed Kuadrant/RHCL
-stack. It runs the current checkout's plugins in the local Backstage app, with
-the same Dex personas and Playwright suite used by CI. It does not test the
-published dynamic-plugin packages or an in-cluster RHDH installation.
+Point the suite at an existing Backstage/RHDH installation to test the plugins
+loaded there:
+
+```bash
+make e2e-deps
+make e2e-remote BASE_URL=https://backstage.example.com PLAYWRIGHT_ARGS="--grep 'Smoke test'"
+make e2e-remote BASE_URL=https://backstage.example.com
+```
+
+`BASE_URL` is required. Use the application's HTTP(S) origin, without a path,
+query, fragment or credentials. The runner prints the selected URL and passes
+it to Playwright. It starts no local app, requires no kubeconfig or local setup
+record, and runs no fixture setup or cleanup. Playwright runs headlessly unless
+`--headed` is requested; the HTML report does not open automatically. The tests
+create and delete resources through the deployed plugin as part of their flows.
+
+The deployment must already have:
+
+- Both Kuadrant plugins loaded and connected to the intended cluster, with
+  permissions to manage the test resources.
+- The five test personas, catalog groups and RBAC from
+  `catalog-entities/kuadrant-users.yaml` and `rbac-policy.csv`.
+- OIDC sign-in through the Dex quick-login picker used by the current suite.
+  A different identity provider or a standard login form needs a matching login
+  helper before these role-based tests can run.
+- The toystore, gamestore and additional demo API products, plus the MCP fixtures
+  used by the full suite. See `kuadrant-dev-setup/demo/`,
+  `e2e-tests/remote/mcp-gateway.yaml` and `oinc/manifests/mcp-demo.yaml`.
+
+The runner tests the installation as configured. It does not install Backstage,
+load plugins, change authentication or configure the deployment's Kubernetes
+credentials. A passing run covers the plugin versions loaded by that deployment;
+record those versions alongside the results.
+
+## Local Backstage against an existing OpenShift cluster
+
+This development path runs the checkout's plugins locally against remote
+Kuadrant APIs. It does not validate a deployed Backstage or its released plugins.
+`remote-setup`, `remote-dev` and `remote-teardown` support this path independently
+of `e2e-remote`.
 
 Prerequisites: Node 22, Yarn, kubectl, curl, Python 3, Docker (for local Dex), and a logged-in
 OpenShift context. Kuadrant must already have the developer portal enabled,
@@ -68,9 +104,9 @@ make remote-setup
 # Terminal 1: local Backstage :3000, backend :7007, Dex :5556
 make remote-dev
 
-# Terminal 2: a quick check, then the full suite
-make e2e-remote PLAYWRIGHT_ARGS="--grep 'Smoke test'"
-make e2e-remote
+# Terminal 2: verify which cluster the local backend reads, then test it
+node e2e-tests/remote/cluster.mjs check
+make e2e-remote BASE_URL=http://localhost:3000
 
 # Stop remote-dev with Ctrl-C, then remove this run's fixtures
 make remote-teardown
@@ -108,13 +144,12 @@ eight-hour service-account token (the API server may cap its lifetime). The
 token is passed to the app's environment; `.env` is unchanged. Restart
 `remote-dev` to renew it. The remote targets do not open browser tabs or the HTML
 report automatically; Playwright runs headlessly unless `--headed` is requested.
-`e2e-remote` waits for catalog ingestion and verifies
-that the backend returns this run's labelled APIProduct before running
-Playwright. This prevents a stale local app from silently testing another
-cluster. Reports, screenshots and traces use the usual `e2e-tests/` paths.
+The `cluster.mjs check` command verifies that the local backend returns this
+run's labelled APIProduct. Reports, screenshots and traces use the usual
+`e2e-tests/` paths.
 
-The setup/cleanup regression tests use a fake kubectl, without contacting a
-cluster: `node --test e2e-tests/remote/cluster.test.mjs`.
+The remote runner and setup/cleanup regression tests use fake commands, without
+contacting a cluster: `node --test e2e-tests/remote/*.test.mjs`.
 
 ## Running against RHDH (dynamic plugins)
 
