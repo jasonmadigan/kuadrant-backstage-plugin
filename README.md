@@ -31,6 +31,10 @@ yarn install
 
 Three developer loops. Pick one. Do not run kind and oinc together (both write `.env`).
 
+For release testing on an existing OpenShift cluster, use the
+[remote e2e targets](docs/e2e-testing.md#running-against-an-existing-openshift-cluster):
+`make remote-setup`, `make remote-dev`, `make e2e-remote`, and `make remote-teardown`.
+
 | | Commands | URL | Auth | For |
 |---|---|---|---|---|
 | **1. kind + host app** | `make -C kuadrant-dev-setup kind-create` then `yarn dev:kind` (or `yarn dev`) | http://localhost:3000 | OIDC (Dex :5556) | In-tree plugins, hot reload. Lighter Kubernetes. |

@@ -1,5 +1,5 @@
 .PHONY: help preflight dynamic-build e2e-deps dynamic-cluster dynamic-up \
-	e2e-specs e2e-dynamic teardown
+	e2e-specs e2e-dynamic teardown remote-setup remote-dev e2e-remote remote-teardown
 
 MAKEFLAGS += --no-print-directory
 
@@ -27,6 +27,12 @@ help:
 	@echo "  make e2e-specs    run the full e2e suite against a running RHDH"
 	@echo "  make e2e-dynamic  run the full build, test and teardown path"
 	@echo "  make teardown     delete the oinc cluster"
+	@echo ""
+	@echo "Existing OpenShift cluster (active kubectl context):"
+	@echo "  make remote-setup     check prerequisites and create owned test fixtures"
+	@echo "  make remote-dev       start the local app and Dex against that cluster"
+	@echo "  make e2e-remote       run the suite against the local app"
+	@echo "  make remote-teardown  remove only this run's fixtures, retaining the cluster"
 	@echo ""
 	@echo "Override versions and image settings on the make command line."
 
@@ -73,6 +79,20 @@ e2e-specs:
 		exit 1; \
 	}
 	cd e2e-tests && BASE_URL="$(RHDH_URL)" yarn test $(PLAYWRIGHT_ARGS)
+
+remote-setup:
+	node e2e-tests/remote/cluster.mjs setup
+
+remote-dev:
+	node e2e-tests/remote/cluster.mjs dev
+
+e2e-remote:
+	BASE_URL=http://localhost:7007 ./e2e-tests/rhdh/wait-for-catalog.sh
+	node e2e-tests/remote/cluster.mjs check
+	cd e2e-tests && BASE_URL=http://localhost:3000 PLAYWRIGHT_HTML_OPEN=never yarn test $(PLAYWRIGHT_ARGS)
+
+remote-teardown:
+	node e2e-tests/remote/cluster.mjs teardown
 
 teardown:
 	./oinc/teardown.sh

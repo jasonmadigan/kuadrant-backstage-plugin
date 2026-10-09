@@ -43,6 +43,79 @@ yarn test --grep "permissions matrix"  # RBAC tests only
 
 Kind has no MCP Gateway operator. Prefer oinc when exercising MCP. Do not run kind and oinc at the same time (both write `.env`).
 
+## Running against an existing OpenShift cluster
+
+Use this path for release testing against an already installed Kuadrant/RHCL
+stack. It runs the current checkout's plugins in the local Backstage app, with
+the same Dex personas and Playwright suite used by CI. It does not test the
+published dynamic-plugin packages or an in-cluster RHDH installation.
+
+Prerequisites: Node 22, Yarn, kubectl, curl, Python 3, Docker (for local Dex), and a logged-in
+OpenShift context. Kuadrant must already have the developer portal enabled,
+the APIProduct/APIKey/approval/PlanPolicy APIs, an accepted `istio` GatewayClass,
+and the MCP APIs/controllers. The full suite includes MCP tests. Setup leaves
+operator versions, CRDs, and the Kuadrant installation unchanged.
+
+```bash
+# Log in/select the release-test cluster first. Keep the same KUBECONFIG and
+# context in each terminal; a separate KUBECONFIG is useful for release testing.
+oc login https://api.<test-cluster>:6443 --username=admin
+kubectl config current-context
+yarn install --immutable
+make e2e-deps
+make remote-setup
+
+# Terminal 1: local Backstage :3000, backend :7007, Dex :5556
+make remote-dev
+
+# Terminal 2: a quick check, then the full suite
+make e2e-remote PLAYWRIGHT_ARGS="--grep 'Smoke test'"
+make e2e-remote
+
+# Stop remote-dev with Ctrl-C, then remove this run's fixtures
+make remote-teardown
+```
+
+Setup creates the toystore/gamestore demos, their Gateways, an MCP Gateway and
+server fixture, persona consumer namespaces, and a dedicated service account
+with the plugin's Kubernetes RBAC. It refuses to overwrite existing fixture
+namespaces or its ClusterRole/ClusterRoleBinding. Gateway Services use the
+cluster's default load balancer, without oinc's MetalLB class.
+
+Ownership and the cluster identity are recorded in the ignored `.e2e-remote/`
+directory. Keep it until cleanup completes. Setup failures retain this record
+so `make remote-teardown` can remove partially created fixtures before retrying.
+Cleanup checks ownership and identity, removes only this run's namespaces and
+RBAC, and retains the cluster and installed release. Do not use `make teardown`
+for this path: that target belongs to oinc.
+
+If you delete or re-clone the checkout and lose `.e2e-remote/`, stop any running
+local app, select the original cluster, and run:
+
+```bash
+make remote-teardown
+make remote-setup
+```
+
+Without a local record, teardown recovers ownership from the known fixture
+namespaces and RBAC. Every remaining fixture must have the same run label;
+unlabelled resources or mixed runs stop cleanup before anything is deleted.
+The recovered record includes current resource UIDs so an interrupted cleanup
+can be retried safely. This also works after a partially completed setup.
+
+`remote-dev` checks the recorded cluster and local ports, then requests an
+eight-hour service-account token (the API server may cap its lifetime). The
+token is passed to the app's environment; `.env` is unchanged. Restart
+`remote-dev` to renew it. The remote targets do not open browser tabs or the HTML
+report automatically; Playwright runs headlessly unless `--headed` is requested.
+`e2e-remote` waits for catalog ingestion and verifies
+that the backend returns this run's labelled APIProduct before running
+Playwright. This prevents a stale local app from silently testing another
+cluster. Reports, screenshots and traces use the usual `e2e-tests/` paths.
+
+The setup/cleanup regression tests use a fake kubectl, without contacting a
+cluster: `node --test e2e-tests/remote/cluster.test.mjs`.
+
 ## Running against RHDH (dynamic plugins)
 
 The required CI job above remains the static-plugin path. The separate `E2E (dynamic plugins)` workflow is manually dispatched and runs the same full suite against the current branch's `export-dynamic` output in RHDH on oinc.

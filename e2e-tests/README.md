@@ -25,6 +25,13 @@ yarn test:smoke
 
 ## Prerequisites
 
+For an existing OpenShift release-test cluster, use `make remote-setup`,
+`make remote-dev`, and `make e2e-remote` from the repository root. Afterwards,
+`make remote-teardown` removes this run's fixtures and retains the cluster.
+If the checkout was deleted, teardown can recover the fixture ownership from
+the cluster before cleanup; run it before setting up the fresh clone.
+See [existing-cluster prerequisites and commands](../docs/e2e-testing.md#running-against-an-existing-openshift-cluster).
+
 CI uses oinc (Kuadrant + MCP Gateway), not kind. Locally, match that or use kind as a lighter fallback:
 
 ```bash
