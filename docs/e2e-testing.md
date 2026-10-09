@@ -79,6 +79,42 @@ load plugins, change authentication or configure the deployment's Kubernetes
 credentials. A passing run covers the plugin versions loaded by that deployment;
 record those versions alongside the results.
 
+### Preparing RHDH on OpenShift
+
+On OpenShift, `make remote-setup BASE_URL=...` deploys Dex and the fixtures, and
+writes matching RHDH configuration. It needs Node 22, Yarn, kubectl and the
+cluster prerequisites of the [local app path](#local-backstage-against-an-existing-openshift-cluster),
+but not Docker. Select the cluster's kubectl context, then:
+
+```bash
+make e2e-deps
+make remote-setup BASE_URL=https://rhdh.example.com
+kubectl create configmap kuadrant-e2e-app-config -n <rhdh-namespace> \
+  --from-file=.e2e-remote/rhdh-app-config.yaml
+kubectl create configmap kuadrant-e2e-files -n <rhdh-namespace> \
+  --from-file=catalog-entities/kuadrant-users.yaml --from-file=rbac-policy.csv
+```
+
+Add `kuadrant-e2e-app-config` as the last entry of the Backstage CR's
+`spec.application.appConfig.configMaps`, and `kuadrant-e2e-files` to
+`spec.application.extraFiles.configMaps` mounted at `/opt/app-root/etc`, in
+place of any other `rbac-policy.csv` there. See
+[Backstage instance](installation.md#backstage-instance). After RHDH restarts:
+
+```bash
+make e2e-remote BASE_URL=https://rhdh.example.com
+make remote-teardown
+```
+
+Dex runs in the owned `kuadrant-backstage-e2e` namespace behind an edge TLS
+route, `https://dex-kuadrant-backstage-e2e.<ingress domain>`, with the
+`BASE_URL` callback added to its `backstage` client. The generated file sets
+the OIDC provider, `signInPage: oidc`, the persona catalog location and RBAC.
+RHDH must trust the cluster's ingress CA to reach Dex, for example through
+`NODE_EXTRA_CA_CERTS`; setup warns when this machine cannot verify the route.
+Until teardown, anyone who can reach the route can sign in as a test persona,
+including the RBAC super user.
+
 ## Local Backstage against an existing OpenShift cluster
 
 This development path runs the checkout's plugins locally against remote
@@ -122,8 +158,9 @@ Ownership and the cluster identity are recorded in the ignored `.e2e-remote/`
 directory. Keep it until cleanup completes. Setup failures retain this record
 so `make remote-teardown` can remove partially created fixtures before retrying.
 Cleanup checks ownership and identity, removes only this run's namespaces and
-RBAC, and retains the cluster and installed release. Do not use `make teardown`
-for this path: that target belongs to oinc.
+RBAC, and retains the cluster and installed release. It deletes this run's MCP
+resources before their namespaces, so the MCP controller can remove its
+finalizers. Do not use `make teardown` for this path: that target belongs to oinc.
 
 If you delete or re-clone the checkout and lose `.e2e-remote/`, stop any running
 local app, select the original cluster, and run:

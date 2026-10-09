@@ -1,17 +1,26 @@
 import { spawnSync } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
+import { backstageOrigin } from "./origin.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const stateDir =
   process.env.E2E_REMOTE_STATE_DIR || path.join(root, ".e2e-remote");
 const stateFile = path.join(stateDir, "state.json");
+const appConfigFile = path.join(stateDir, "rhdh-app-config.yaml");
 const namespace = "kuadrant-backstage-e2e";
 const ownerLabel = "kuadrant.io/backstage-e2e-run";
+const mcpAPIs = [
+  "mcpserverregistrations.mcp.kuadrant.io",
+  "mcpgatewayextensions.mcp.kuadrant.io",
+];
+// where the backstage cr mounts extraFiles, as in docs/installation.md
+const extraFiles = "/opt/app-root/etc";
 let context;
 
 function run(command, args, options = {}) {
@@ -126,6 +135,127 @@ function fixtures() {
   return { roots: [...namespaces.values(), role, binding], namespaced };
 }
 
+function ingressDomain() {
+  const domain = get("ingresses.config.openshift.io", "cluster")?.spec?.domain;
+  if (!domain)
+    throw new Error(
+      "Cannot read the cluster ingress domain from ingresses.config.openshift.io/cluster",
+    );
+  return domain;
+}
+
+function dexFixtures(origin, domain) {
+  const host = `dex-${namespace}.${domain}`;
+  const issuer = `https://${host}`;
+  const [config] = readYaml("kuadrant-dev-setup/dex/config.yaml");
+  config.issuer = issuer;
+  const client = config.staticClients.find((c) => c.id === "backstage");
+  client.redirectURIs.push(`${origin}/api/auth/oidc/handler/frame`);
+  const manifests = readYaml("oinc/manifests/dex.yaml");
+  for (const resource of manifests) resource.metadata.namespace = namespace;
+  const route = manifests.find((r) => r.kind === "Route");
+  route.spec.host = host;
+  route.spec.tls = {
+    termination: "edge",
+    insecureEdgeTerminationPolicy: "Redirect",
+  };
+  const configMap = (name, data) => ({
+    apiVersion: "v1",
+    kind: "ConfigMap",
+    metadata: { name, namespace },
+    data,
+  });
+  const template = path.join(
+    root,
+    "kuadrant-dev-setup/dex/web/templates/password.html",
+  );
+  return {
+    issuer,
+    client,
+    resources: [
+      configMap("dex-config", {
+        "config.yaml": yaml.dump(config, { lineWidth: -1 }),
+      }),
+      configMap("dex-web", {
+        "password.html": fs.readFileSync(template, "utf8"),
+      }),
+      ...manifests,
+    ],
+  };
+}
+
+async function checkIssuer(issuer) {
+  const url = `${issuer}/.well-known/openid-configuration`;
+  let status;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    // the router answers 503 until it routes to the new dex endpoints
+    if (attempt) await sleep(2000);
+    let response;
+    try {
+      response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    } catch (error) {
+      console.warn(
+        `warning: cannot fetch ${url} from this machine: ${error.cause?.message || error.message}. RHDH must trust the cluster's ingress CA to reach Dex, for example through NODE_EXTRA_CA_CERTS.`,
+      );
+      return;
+    }
+    if (response.ok) {
+      const discovery = await response.json().catch(() => ({}));
+      if (discovery.issuer !== issuer)
+        throw new Error(
+          `${url} reports issuer ${discovery.issuer ?? "none"}, expected ${issuer}`,
+        );
+      console.log(`Verified: Dex serves issuer ${issuer}.`);
+      return;
+    }
+    status = response.status;
+  }
+  throw new Error(
+    `${url} still returns HTTP ${status}; check route dex in namespace ${namespace}`,
+  );
+}
+
+function rhdhAppConfig(issuer, client) {
+  return {
+    signInPage: "oidc",
+    auth: {
+      environment: "development",
+      session: { secret: randomBytes(32).toString("hex") },
+      providers: {
+        oidc: {
+          development: {
+            metadataUrl: `${issuer}/.well-known/openid-configuration`,
+            clientId: client.id,
+            clientSecret: client.secret,
+            // without offline_access dex issues no refresh token and sessions end on reload
+            additionalScopes: ["offline_access"],
+            signIn: {
+              resolvers: [{ resolver: "emailMatchingUserEntityProfileEmail" }],
+            },
+          },
+        },
+      },
+    },
+    catalog: {
+      locations: [
+        {
+          type: "file",
+          target: `${extraFiles}/kuadrant-users.yaml`,
+          rules: [{ allow: ["User", "Group"] }],
+        },
+      ],
+    },
+    permission: {
+      enabled: true,
+      rbac: {
+        admin: { superUsers: [{ name: "user:default/admin" }] },
+        "policies-csv-file": `${extraFiles}/rbac-policy.csv`,
+        policyFileReload: true,
+      },
+    },
+  };
+}
+
 function save(state) {
   fs.writeFileSync(`${stateFile}.tmp`, JSON.stringify(state, null, 2), {
     mode: 0o600,
@@ -228,7 +358,10 @@ async function checkBackend(state) {
   );
 }
 
-function setup() {
+async function setup() {
+  const origin = process.env.BASE_URL
+    ? backstageOrigin(process.env.BASE_URL)
+    : undefined;
   if (fs.existsSync(stateDir))
     throw new Error(
       "Remote setup already recorded; use make remote-teardown before another setup",
@@ -262,8 +395,7 @@ function setup() {
     "ratelimitpolicies.kuadrant.io",
     "gateways.gateway.networking.k8s.io",
     "httproutes.gateway.networking.k8s.io",
-    "mcpgatewayextensions.mcp.kuadrant.io",
-    "mcpserverregistrations.mcp.kuadrant.io",
+    ...mcpAPIs,
   ]) {
     if (!get("crd", name)) throw new Error(`Required CRD missing: ${name}`);
   }
@@ -274,6 +406,11 @@ function setup() {
     "--timeout=30s",
   ]);
   const { roots, namespaced } = fixtures();
+  const dex = origin && dexFixtures(origin, ingressDomain());
+  if (dex) {
+    namespaced.push(...dex.resources);
+    console.log(`Dex for ${origin}: ${dex.issuer}`);
+  }
   for (const resource of roots) {
     if (get(resource.kind, resource.metadata.name)) {
       throw new Error(
@@ -325,11 +462,37 @@ function setup() {
       { stdio: "inherit" },
     );
   }
+  if (dex) {
+    kube(
+      [
+        "rollout",
+        "status",
+        "deployment/dex",
+        "-n",
+        namespace,
+        "--timeout=180s",
+      ],
+      { stdio: "inherit" },
+    );
+    await checkIssuer(dex.issuer);
+    fs.writeFileSync(
+      appConfigFile,
+      yaml.dump(rhdhAppConfig(dex.issuer, dex.client), { lineWidth: -1 }),
+      { mode: 0o600 },
+    );
+  }
   state.ready = true;
   save(state);
-  console.log(
-    "Fixtures ready. Run make remote-dev, then make e2e-remote in another terminal.",
-  );
+  if (dex) {
+    const shown = path.relative(process.cwd(), appConfigFile);
+    console.log(
+      `Fixtures and Dex ready. Add ${shown.startsWith("..") ? appConfigFile : shown} to the RHDH app-config, mount catalog-entities/kuadrant-users.yaml and rbac-policy.csv at ${extraFiles}, then run make e2e-remote BASE_URL=${origin}.`,
+    );
+  } else {
+    console.log(
+      "Fixtures ready. Run make remote-dev, then make e2e-remote in another terminal.",
+    );
+  }
 }
 
 function recover() {
@@ -364,6 +527,23 @@ function recover() {
 function teardown(state) {
   // Validate the entire inventory before deleting anything.
   for (const resource of state.roots) assertOwned(state, resource);
+  // the mcp controller cannot remove its finalizers once the namespace is terminating
+  const mcp = mcpAPIs.filter((crd) => get("crd", crd));
+  if (mcp.length) {
+    for (const resource of state.roots.filter((r) => r.kind === "Namespace")) {
+      const deleted = kube([
+        "delete",
+        mcp.join(","),
+        "-n",
+        resource.metadata.name,
+        "-l",
+        `${ownerLabel}=${state.runID}`,
+        "--ignore-not-found",
+        "--timeout=120s",
+      ]);
+      if (deleted !== "No resources found") console.log(deleted);
+    }
+  }
   for (const resource of [...state.roots].reverse()) {
     kube(
       [
@@ -401,7 +581,7 @@ try {
   if (!["setup", "dev", "check", "teardown"].includes(action))
     throw new Error("Usage: cluster.mjs setup|dev|check|teardown");
   if (action === "setup") {
-    setup();
+    await setup();
   } else if (action === "teardown") {
     teardown(fs.existsSync(stateFile) ? load() : recover());
   } else {
